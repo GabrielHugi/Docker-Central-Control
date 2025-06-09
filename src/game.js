@@ -1,6 +1,6 @@
 const express = require('express');
 const app = express();
-const PORT = 4000;
+const PORT = 7777;
 
 app.get('/', (req, res) => {
   res.send('Hello from the dynamic worker!');

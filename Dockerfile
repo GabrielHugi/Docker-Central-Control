@@ -15,7 +15,7 @@ FROM node:24-alpine
 WORKDIR /app
 LABEL maintainer="gabrielhugi2@gmail.com"
 LABEL version="1.0"
-LABEL description="C code that does some shit"
+LABEL description="Central control server"
 RUN apk add --no-cache wget
 RUN adduser -D appuser && chown -R appuser /app
 USER appuser
@@ -24,6 +24,6 @@ COPY --from=builder /app/dist ./dist
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget -qO- http://localhost:3000/status || exit 1
 EXPOSE 3000
-EXPOSE 4000
+EXPOSE 7777
 
 CMD ["node", "dist/index.js"]

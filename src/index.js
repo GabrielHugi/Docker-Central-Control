@@ -6,12 +6,15 @@ const bodyParser = require('body-parser');
 const app = express();
 app.use(bodyParser.json());
 
+const SERVER_PORT = 3000;
+const INTERNAL_PORT = "7777";
+
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });            
 
 let serverContainer = null;
 
-async function findExistingServer() {
+async function findExistingServer(SERVER_NAME) {
   const containers = await docker.listContainers({ all: true });
   for (let info of containers) {
     if (info.Names.includes(`/${SERVER_NAME}`)) {
@@ -23,7 +26,7 @@ async function findExistingServer() {
 
 app.post('/start', async (req, res) => {
   const { username, password, image, restart } = req.body;
-  if (!image || !username || !password) return res.status(400).json({error: "Missing stuff. Remember to add image name, username and password. Restart is optional."})
+  if (!image || !username || !password) return res.status(400).json({error: "Essential information is missing. Remember to add image name, username and password atributes to your request body. Restart is optional."})
   const SERVER_IMAGE = image;
   const SERVER_NAME  = image;
   if (username !== 'admin' || password !== 'password') {
@@ -31,9 +34,10 @@ app.post('/start', async (req, res) => {
   }
 
   try {
-    let existing = await findExistingServer();
+    if (!image) return res.status(400).json({ error: "image attribute is required" });
+    let existing = await findExistingServer(image);
     if (existing) {
-      const info = await existing.inspect();
+      const info = await existing.inspect();  
       if (info.State.Running) {
         return res.status(400).json({ error: 'Server already running' });
       }
@@ -52,7 +56,7 @@ app.post('/start', async (req, res) => {
             if (err) return reject(err);
             resolve(output);
           }
-          function onProgress(event) {
+          function onProgress(event) {inspe
             // log game variables or something idk
             // mr johnny buttson was kileld by gamersigma3233
           }
@@ -64,19 +68,21 @@ app.post('/start', async (req, res) => {
     const container = await docker.createContainer({
       Image: SERVER_IMAGE,
       name: SERVER_NAME,
-      ExposedPorts: { [`${SERVER_PORT}/tcp`]: {} },
+      ExposedPorts: { [`${INTERNAL_PORT}/tcp`]: {} },
       HostConfig: {
-        PortBindings: {
-          [`${SERVER_PORT}/tcp`]: [{ HostPort: "" }]
-        }
+        PublishAllPorts: true
       }
     });
 
     await container.start();
     serverContainer = container;
     let info = await container.inspect();
-    let port = info.NetworkSettings.Ports[`${INTERNAL_PORT}/tcp`][0].HostPort;
-    return res.json({ message: `server started on port ${port}` });
+    const containerIP   = info.NetworkSettings.IPAddress;
+    const hostPort      = info.NetworkSettings.Ports[`${INTERNAL_PORT}/tcp`][0].HostPort;
+    const hostAddress   = `http://localhost:${hostPort}`;
+    console.log(`→ Container internal address: ${containerIP}:${INTERNAL_PORT}`);
+    console.log(`→ Accessible from host at:   ${hostAddress}`);
+    return res.json({ message: `server started on port ${hostPort}` });
   } catch (err) {
     console.error('Error in /start:', err);
     return res.status(500).json({ error: err.message });
@@ -85,7 +91,9 @@ app.post('/start', async (req, res) => {
 
 app.post('/stop', async (req, res) => {
   try {
-    let existing = await findExistingServer();
+    const { image } = req.body;
+    if (!image) return res.status(400).json({ error: "image attribute is required" });
+    let existing = await findExistingServer(image);
     if (!existing) {
       return res.status(400).json({ error: 'No server container found' });
     }
@@ -105,9 +113,11 @@ app.post('/stop', async (req, res) => {
 
 app.get('/status', async (req, res) => {
   try {
-    const existing = await findExistingServer();
+    const { image } = req.body;
+    if (!image) return res.status(400).json({ error: "image attribute is required" });
+    let existing = await findExistingServer(image);
     if (!existing) {
-      return res.json({ status: 'not-found' });
+      return res.status(404).json({ error: 'Image not running / does not exist' });
     }
     const info = await existing.inspect();
     return res.json({ status: info.State.Running ? 'running' : 'stopped' });
