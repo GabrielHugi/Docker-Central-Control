@@ -2,7 +2,7 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 LABEL maintainer="gabrielhugi2@gmail.com"
 LABEL version="1.0"
-LABEL description="C code that does some shit"
+LABEL description="Code that represents a game server but actually doesn't do shit because that is not the point of this project"
 COPY package*.json .
 RUN apk add --no-cache python3 make g++
 RUN npm i
